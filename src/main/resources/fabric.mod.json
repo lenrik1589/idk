@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "idk",
+	"version": "${version}",
+	"name": "Idk",
+	"description": "A mod that provides some Creative Inventory changes.",
+	"authors": [
+		"lenrik1589"
+	],
+	"contact": {
+		"repo": "https://github.com/lenrik1589/idk"
+	},
+	"license": "LGPL-3.0",
+	"icon": "assets/idk/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"here.lenrik.idk.IdkClient"
+		]
+	},
+	"mixins": [
+		"idk.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.10.5+build.213",
+		"minecraft": "1.16.3"
+	},
+	"suggests": {
+		"modmenu": "*"
+	}
+}

@@ -1,0 +1,8 @@
+{
+	"idk.inventory.hotbars_reload":"Reload Hotbars",
+	"idk.inventory.open_sidebar":"Open Sidebar",
+	"idk.inventory.close_sidebar":"Close Sidebar",
+	"idk.inventory.in_item_tags":"In item tags:",
+	"idk.inventory.in_block_tags":"In block tags:",
+	"idk.gui.creative_tab_page": "Page %d/%d"
+}

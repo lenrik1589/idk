@@ -1,0 +1,19 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "here.lenrik.idk.mixin",
+	"compatibilityLevel": "JAVA_14",
+	"mixins": [
+		"GameMenuScreenMixin",
+		"HotbarStorageMixin",
+		"InventoryScreenMixin",
+		"MinecraftClientMixin",
+		"SearchManagerMixin",
+		"ClientPlayNetworkHandlerMixin"
+	],
+	"client": [
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

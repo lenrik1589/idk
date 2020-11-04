@@ -1,0 +1,8 @@
+{
+  "idk.inventory.hotbars_reload": "Reload Hotbars",
+  "idk.inventory.open_sidebar": "Открыть Панель",
+  "idk.inventory.close_sidebar": "Закрыть Панель",
+  "idk.inventory.in_item_tags": "В Тэгах Вещей:",
+  "idk.inventory.in_block_tags": "В Тэгах Блоков:",
+  "idk.gui.creative_tab_page": "Page %d/%d"
+}
