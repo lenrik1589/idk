@@ -66,7 +66,6 @@ import static net.minecraft.util.Formatting.*;
 public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> implements CreativeGuiExtensions {
 	private static final Identifier BUTTON_TEX = new Identifier("idk", "textures/gui/creative_buttons.png");
 	private static final Identifier BACKGR_TEX = new Identifier("textures/gui/container/creative_inventory/tabs.png");
-//	private static final Pattern PATTERN = Pattern.compile("[A-Za-z0-9._+-]+");
 	private static final SimpleInventory INVENTORY = new SimpleInventory(45);
 	private static final SimpleInventory EDITOR_INV = new SimpleInventory(1);
 	private static final Text binText = new TranslatableText("inventory.binSlot");
