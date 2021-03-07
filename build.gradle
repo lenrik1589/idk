@@ -16,7 +16,6 @@ repositories {
         url 'https://masa.dy.fi/maven'
     }
     flatDir {
-        name "local"
         dir "libs"
     }
 }
@@ -37,7 +36,7 @@ dependencies {
     // PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
     // You may need to force-disable transitiveness on them.
 
-//    modCompile name: "itemscroller-fabric-1.16.2-0.15.0-dev.20200812.031004", ext: "jar" didn't vork as it is unmapped names inside
+    modImplementation name: "itemscroller-fabric-1.16.4-0.15.0-dev.20210120.005131-dev", ext: "jar" // didn't vork as it is unmapped names inside
 
 }
 

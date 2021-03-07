@@ -70,7 +70,7 @@ public class MinecraftClientMixin {
 						}
 		);
 		IdentifierSearchableContainer<ItemStack> modIdSearchableContainer = new IdentifierSearchableContainer<>(
-						(itemStack) -> Streams.stream(Optional.of(Registry.ITEM.getId(itemStack.getItem()) ))
+						(itemStack) -> Optional.of(Registry.ITEM.getId(itemStack.getItem()) ).stream()
 		);
 
 		defaultedList.forEach(blockTagSearchableContainer::add);

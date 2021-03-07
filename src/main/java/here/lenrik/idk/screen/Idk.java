@@ -40,6 +40,7 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.*;
+import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
@@ -65,8 +66,10 @@ import static net.minecraft.util.Formatting.*;
 public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> implements CreativeGuiExtensions {
 	private static final Identifier BUTTON_TEX = new Identifier("idk", "textures/gui/creative_buttons.png");
 	private static final Identifier BACKGR_TEX = new Identifier("textures/gui/container/creative_inventory/tabs.png");
+//	private static final Pattern PATTERN = Pattern.compile("[A-Za-z0-9._+-]+");
 	private static final SimpleInventory INVENTORY = new SimpleInventory(45);
-	private static final Text field_26563 = new TranslatableText("inventory.binSlot");
+	private static final SimpleInventory EDITOR_INV = new SimpleInventory(1);
+	private static final Text binText = new TranslatableText("inventory.binSlot");
 	private static final Logger LOGGER = LogManager.getLogger();
 	private static int currentPage = 0;
 	private static int selectedTab;
@@ -84,6 +87,7 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 	private Slot deleteItemSlot;
 	@Nullable
 	private List<Slot> slots;
+	final int searchIndex = ItemGroup.SEARCH.getIndex();
 
 	public static class UtilityButtonWidget extends ButtonWidget {
 		CreativeGuiExtensions extensions;
@@ -92,14 +96,15 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 
 		public UtilityButtonWidget (int x, int y, Type type, CreativeGuiExtensions extensions) {
 			super(x, y,
-							9 + (type == Type.RELOAD ? 8 : type == Type.NEXT || type == Type.PREVIOUS ? 2 : 0),
-							9 + (type == Type.RELOAD ? 8 : type == Type.NEXT || type == Type.PREVIOUS ? 1 : 0),
-							type.text, (bw) -> type.clickConsumer.accept(extensions));
+					9 + (type == Type.RELOAD ? 8 : type == Type.NEXT || type == Type.PREVIOUS ? 2 : 0),
+					9 + (type == Type.RELOAD ? 8 : type == Type.NEXT || type == Type.PREVIOUS ? 1 : 0),
+					type.text, (bw) -> type.clickConsumer.accept(extensions));
 			this.extensions = extensions;
 			this.type = type;
 			this.gui = (Idk) extensions;
 		}
 
+		@SuppressWarnings("deprecation")
 		public void render (MatrixStack matrixStack, int mouseX, int mouseY, float delta) {
 			this.hovered = mouseX >= this.x && mouseY >= this.y && mouseX < this.x + this.width && mouseY < this.y + this.height;
 			switch (type) {
@@ -177,7 +182,7 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 	}
 
 	private static void reloadHotbars (CreativeGuiExtensions creativeGuiExtensions) {
-		((HotbarStorageReloader) ((Idk) creativeGuiExtensions).client.getCreativeHotbarStorage()).reload();
+		((HotbarStorageReloader) Objects.requireNonNull(((Idk) creativeGuiExtensions).client).getCreativeHotbarStorage()).reload();
 		((Idk) creativeGuiExtensions).setSelectedTab(ItemGroup.HOTBAR);
 		LOGGER.info("reload");
 	}
@@ -295,9 +300,9 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 		int maxPos = this.getPageOffset(currentPage + 1) - 1;
 		int curPos = this.getSelectedTab();
 		if ((curPos < minPos || curPos > maxPos) &&
-						curPos != ItemGroup.SEARCH.getIndex() &&
-						curPos != ItemGroup.HOTBAR.getIndex() &&
-						curPos != ItemGroup.INVENTORY.getIndex()) {
+				curPos != searchIndex &&
+				curPos != ItemGroup.HOTBAR.getIndex() &&
+				curPos != ItemGroup.INVENTORY.getIndex()) {
 			this.setSelectedTab(ItemGroup.GROUPS[curPos < minPos ? minPos : (maxPos == getPageOffset(1) - 1) ? 10 : maxPos]);
 		}
 
@@ -317,7 +322,7 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 
 	public void tick () {
 		assert this.client != null && this.client.player != null;
-		if (!this.client.interactionManager.hasCreativeInventory()) {
+		if (!Objects.requireNonNull(this.client.interactionManager).hasCreativeInventory()) {
 			this.client.openScreen(new InventoryScreen(this.client.player));
 		} else if (this.searchBox != null) {
 			this.searchBox.tick();
@@ -333,8 +338,8 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 		}
 
 		boolean doQuickMove = actionType == SlotActionType.QUICK_MOVE,
-						doQuickCraft = actionType == SlotActionType.QUICK_CRAFT,
-						doPickUp = actionType == SlotActionType.PICKUP;
+				doQuickCraft = actionType == SlotActionType.QUICK_CRAFT,
+				doPickUp = actionType == SlotActionType.PICKUP;
 		actionType = invSlot == -999 && doPickUp ? SlotActionType.THROW : actionType;
 		PlayerInventory playerInventory;
 		if (slot == null && selectedTab != ItemGroup.INVENTORY.getIndex() && doQuickCraft) {
@@ -544,7 +549,7 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 		assert this.client != null && this.client.player != null;
 		if (this.ignoreTypedCharacter) {
 			return false;
-		} else if (selectedTab != ItemGroup.SEARCH.getIndex()) {
+		} else if (selectedTab != searchIndex) {
 			return false;
 		} else if (this.searchBox.isActive()) {
 			String string = this.searchBox.getText();
@@ -595,7 +600,7 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 				return true;
 			}
 			return this.searchBox.isFocused() && this.searchBox.isVisible() && keyCode != 256 ||
-							super.keyPressed(keyCode, scanCode, modifiers);
+					super.keyPressed(keyCode, scanCode, modifiers);
 
 		}
 	}
@@ -615,25 +620,26 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 				item.appendStacks(ItemGroup.SEARCH, this.handler.itemList);
 			}
 		} else {
-			if (string.startsWith("#")) {
-				string = string.substring(1);
-				IdentifierSearchableContainer<ItemStack> searchable2 = (IdentifierSearchableContainer<ItemStack>) this.client.getSearchableContainer(((ExtendedSearchKeys) new SearchManager()).getBlockTagKey());
-				handler.itemList.addAll(searchable2.findAll(string.toLowerCase(Locale.ROOT)));
-				searchable2 = (IdentifierSearchableContainer<ItemStack>) this.client.getSearchableContainer(SearchManager.ITEM_TAG);
-				handler.itemList.addAll(searchable2.findAll(string.toLowerCase(Locale.ROOT)));
-				searchForTags(string);
-			} else if (string.startsWith("@")) {
-				string = string.substring(1);
-				if (string.indexOf(':') == -1) {
-					string += ":";
+			if (this.client != null) {
+				if (string.startsWith("#")) {
+					string = string.substring(1);
+					IdentifierSearchableContainer<ItemStack> searchable2 = (IdentifierSearchableContainer<ItemStack>) this.client.getSearchableContainer(((ExtendedSearchKeys) new SearchManager()).getBlockTagKey());
+					handler.itemList.addAll(searchable2.findAll(string.toLowerCase(Locale.ROOT)));
+					searchable2 = (IdentifierSearchableContainer<ItemStack>) this.client.getSearchableContainer(SearchManager.ITEM_TAG);
+					handler.itemList.addAll(searchable2.findAll(string.toLowerCase(Locale.ROOT)));
+					searchForTags(string);
+				} else if (string.startsWith("@")) {
+					string = string.substring(1);
+					if (string.indexOf(':') == -1) {
+						string += ":";
+					}
+					IdentifierSearchableContainer<ItemStack> searchable2 = (IdentifierSearchableContainer<ItemStack>) this.client.getSearchableContainer(((ExtendedSearchKeys) new SearchManager()).getModIdKey());
+					this.handler.itemList.addAll(searchable2.findAll(string.toLowerCase(Locale.ROOT)));
+				} else {
+					TextSearchableContainer<ItemStack> searchable2 = (TextSearchableContainer<ItemStack>) this.client.getSearchableContainer(SearchManager.ITEM_TOOLTIP);
+					this.handler.itemList.addAll(searchable2.findAll(string.toLowerCase(Locale.ROOT)));
 				}
-				IdentifierSearchableContainer<ItemStack> searchable2 = (IdentifierSearchableContainer<ItemStack>) this.client.getSearchableContainer(((ExtendedSearchKeys) new SearchManager()).getModIdKey());
-				this.handler.itemList.addAll(searchable2.findAll(string.toLowerCase(Locale.ROOT)));
-			} else {
-				TextSearchableContainer<ItemStack> searchable2 = (TextSearchableContainer<ItemStack>) this.client.getSearchableContainer(SearchManager.ITEM_TOOLTIP);
-				this.handler.itemList.addAll(searchable2.findAll(string.toLowerCase(Locale.ROOT)));
 			}
-
 		}
 
 		this.scrollPosition = 0.0F;
@@ -666,22 +672,22 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 
 	}
 
+	int clickIndex;
+
 	public boolean mouseClicked (double mouseX, double mouseY, int button) {
 		if (button == 0) {
 			double relX = mouseX - x;
 			double relY = mouseY - y;
-			ItemGroup[] var10 = ItemGroup.GROUPS;
+			ItemGroup[] groups = ItemGroup.GROUPS;
 
-			//			for (AbstractButtonWidget buttonWidget : buttons){
-			//				buttonWidget.mouseClicked(relX, relY, button);
-			//			}
-			for (ItemGroup itemGroup : var10) {
-				if (isClickInTab(itemGroup, relX, relY)) {
+			for (ItemGroup group : groups) {
+				if (isClickInTab(group, relX, relY)) {
+					clickIndex = group.getIndex();
 					return true;
 				}
 			}
 
-			if (selectedTab == ItemGroup.SEARCH.getIndex() && searchBox.isMouseOver(mouseX, mouseY) && !searchBox.isFocused()) {
+			if (selectedTab == searchIndex && searchBox.isMouseOver(mouseX, mouseY) && !searchBox.isFocused()) {
 				searchBox.changeFocus(false);
 				return true;
 			} else if (selectedTab != ItemGroup.INVENTORY.getIndex() && isClickInScrollbar(mouseX, mouseY)) {
@@ -689,7 +695,7 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 				return true;
 			}
 		}
-
+		LOGGER.info("mouse clicked");
 		return super.mouseClicked(mouseX, mouseY, button);
 	}
 
@@ -698,16 +704,16 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 			double d = mouseX - (double) this.x;
 			double e = mouseY - (double) this.y;
 			this.scrolling = false;
-			ItemGroup[] var10 = ItemGroup.GROUPS;
+			ItemGroup[] groups = ItemGroup.GROUPS;
 
-			for (ItemGroup itemGroup : var10) {
-				if (this.isClickInTab(itemGroup, d, e)) {
-					this.setSelectedTab(itemGroup);
+			for (ItemGroup group : groups) {
+				if (clickIndex == group.getIndex() && this.isClickInTab(group, d, e)) {
+					this.setSelectedTab(group);
 					return true;
 				}
 			}
 		}
-
+		LOGGER.info("mouse released");
 		return super.mouseReleased(mouseX, mouseY, button);
 	}
 
@@ -722,108 +728,112 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 			this.cursorDragSlots.clear();
 			this.handler.itemList.clear();
 			int slotNum;
-			if (group == ItemGroup.HOTBAR) {
-				HotbarStorage hotbarStorage = this.client.getCreativeHotbarStorage();
+			if(this.client != null) {
+				if (group == ItemGroup.HOTBAR) {
+					HotbarStorage hotbarStorage = this.client.getCreativeHotbarStorage();
 
-				for (slotNum = 0; slotNum < 9; ++slotNum) {
-					HotbarStorageEntry hotbarStorageEntry = hotbarStorage.getSavedHotbar(slotNum);
-					if (hotbarStorageEntry.isEmpty()) {
-						for (int hotbar = 0; hotbar < 9; ++hotbar) {
-							Text hotbarNumText = client.options.keysHotbar[slotNum].getBoundKeyLocalizedText().copy().setStyle(Style.EMPTY.withItalic(true).withColor(DARK_AQUA));
-							if (hotbar == slotNum) {
-								ItemStack itemStack = new ItemStack(Items.PAPER);
-								itemStack.getOrCreateSubTag("CustomCreativeLock");
-								Text saveToolbarText = client.options.keySaveToolbarActivator.getBoundKeyLocalizedText().copy().setStyle(Style.EMPTY.withItalic(true).withColor(DARK_GREEN));
-								itemStack.setCustomName(new TranslatableText("inventory.hotbarInfo", saveToolbarText, hotbarNumText).setStyle(Style.EMPTY.withColor(GREEN).withItalic(false)));
-								this.handler.itemList.add(itemStack);
+					for (slotNum = 0; slotNum < 9; ++slotNum) {
+						HotbarStorageEntry hotbarStorageEntry = hotbarStorage.getSavedHotbar(slotNum);
+						if (hotbarStorageEntry.isEmpty()) {
+							for (int hotbar = 0; hotbar < 9; ++hotbar) {
+								Text hotbarNumText = client.options.keysHotbar[slotNum].getBoundKeyLocalizedText().copy().setStyle(Style.EMPTY.withItalic(true).withColor(DARK_AQUA));
+								if (hotbar == slotNum) {
+									ItemStack itemStack = new ItemStack(Items.PAPER);
+									itemStack.getOrCreateSubTag("CustomCreativeLock");
+									Text saveToolbarText = client.options.keySaveToolbarActivator.getBoundKeyLocalizedText().copy().setStyle(Style.EMPTY.withItalic(true).withColor(DARK_GREEN));
+									itemStack.setCustomName(new TranslatableText("inventory.hotbarInfo", saveToolbarText, hotbarNumText).setStyle(Style.EMPTY.withColor(GREEN).withItalic(false)));
+									this.handler.itemList.add(itemStack);
+								} else {
+									ItemStack stack = new ItemStack(
+											Items.LIGHT_GRAY_STAINED_GLASS_PANE
+									).setCustomName(
+											new LiteralText("Slot №" + hotbarNumText.asString()).setStyle(Style.EMPTY.withItalic(false).withColor(GREEN))
+									);
+									stack.getOrCreateSubTag("CustomCreativeLock");
+									this.handler.itemList.add(stack);
+								}
+							}
+						} else {
+							this.handler.itemList.addAll(hotbarStorageEntry);
+						}
+					}
+				} else if (group != ItemGroup.SEARCH) {
+					group.appendStacks(this.handler.itemList);
+				}
+
+				if (group == ItemGroup.INVENTORY) {
+					assert client.player != null;
+					ScreenHandler screenHandler = client.player.playerScreenHandler;
+					if (slots == null) {
+						slots = ImmutableList.copyOf(handler.slots);
+					}
+
+					handler.slots.clear();
+
+					for (slotNum = 0; slotNum < screenHandler.slots.size(); ++slotNum) {
+						int offsetNum;
+						int slotCol, slotRow, slotX, slotY;
+						if (slotNum >= 0 && slotNum < 5) {
+							slotX = -2000;
+							slotY = -2000;
+						} else if (slotNum >= 5 && slotNum < 9) {
+							offsetNum = slotNum - 5;
+							slotCol = offsetNum / 2;
+							slotRow = offsetNum % 2;
+							slotX = 54 + slotCol * 54;
+							slotY = 6 + slotRow * 27;
+						} else if (slotNum == 45) {
+							slotX = 35;
+							slotY = 20;
+						} else {
+							offsetNum = slotNum - 9;
+							slotCol = offsetNum % 9;
+							slotRow = offsetNum / 9;
+							slotX = 9 + slotCol * 18;
+							if (slotNum >= 36) {
+								slotY = 112;
 							} else {
-								ItemStack stack = new ItemStack(
-												Items.LIGHT_GRAY_STAINED_GLASS_PANE
-								).setCustomName(
-												new LiteralText("Slot №" + hotbarNumText.asString()).setStyle(Style.EMPTY.withItalic(false).withColor(GREEN))
-								);
-								stack.getOrCreateSubTag("CustomCreativeLock");
-								this.handler.itemList.add(stack);
+								slotY = 54 + slotRow * 18;
 							}
 						}
-					} else {
-						this.handler.itemList.addAll(hotbarStorageEntry);
+
+						Slot slot = new CreativeSlot(screenHandler.slots.get(slotNum), slotNum, slotX, slotY);
+						handler.slots.add(slot);
 					}
+
+					deleteItemSlot = new Slot(INVENTORY, 0, 173, 112);
+					handler.slots.add(deleteItemSlot);
+				} else if (i == ItemGroup.INVENTORY.getIndex()) {
+					handler.slots.clear();
+					assert slots != null;
+					handler.slots.addAll(slots);
+					slots = null;
 				}
-			} else if (group != ItemGroup.SEARCH) {
-				group.appendStacks(this.handler.itemList);
-			}
 
-			if (group == ItemGroup.INVENTORY) {
-				ScreenHandler screenHandler = client.player.playerScreenHandler;
-				if (slots == null) {
-					slots = ImmutableList.copyOf(handler.slots);
-				}
-
-				handler.slots.clear();
-
-				for (slotNum = 0; slotNum < screenHandler.slots.size(); ++slotNum) {
-					int offsetNum;
-					int slotCol, slotRow, slotX, slotY;
-					if (slotNum >= 0 && slotNum < 5) {
-						slotX = -2000;
-						slotY = -2000;
-					} else if (slotNum >= 5 && slotNum < 9) {
-						offsetNum = slotNum - 5;
-						slotCol = offsetNum / 2;
-						slotRow = offsetNum % 2;
-						slotX = 54 + slotCol * 54;
-						slotY = 6 + slotRow * 27;
-					} else if (slotNum == 45) {
-						slotX = 35;
-						slotY = 20;
-					} else {
-						offsetNum = slotNum - 9;
-						slotCol = offsetNum % 9;
-						slotRow = offsetNum / 9;
-						slotX = 9 + slotCol * 18;
-						if (slotNum >= 36) {
-							slotY = 112;
-						} else {
-							slotY = 54 + slotRow * 18;
+				if (this.searchBox != null) {
+					if (group == ItemGroup.SEARCH) {
+						searchBox.setVisible(true);
+						searchBox.setFocusUnlocked(false);
+						searchBox.setSelected(true);
+						if (i != group.getIndex()) {
+							searchBox.setText("");
 						}
-					}
 
-					Slot slot = new CreativeSlot(screenHandler.slots.get(slotNum), slotNum, slotX, slotY);
-					handler.slots.add(slot);
-				}
-
-				deleteItemSlot = new Slot(INVENTORY, 0, 173, 112);
-				handler.slots.add(deleteItemSlot);
-			} else if (i == ItemGroup.INVENTORY.getIndex()) {
-				handler.slots.clear();
-				handler.slots.addAll(slots);
-				slots = null;
-			}
-
-			if (this.searchBox != null) {
-				if (group == ItemGroup.SEARCH) {
-					searchBox.setVisible(true);
-					searchBox.setFocusUnlocked(false);
-					searchBox.setSelected(true);
-					if (i != group.getIndex()) {
+						this.search();
+					} else {
+						searchBox.setVisible(false);
+						searchBox.setFocusUnlocked(true);
+						searchBox.setSelected(false);
 						searchBox.setText("");
 					}
+					if (searchBox.isFocused()) {
+						searchBox.changeFocus(false);
+					}
+				}
 
-					this.search();
-				} else {
-					searchBox.setVisible(false);
-					searchBox.setFocusUnlocked(true);
-					searchBox.setSelected(false);
-					searchBox.setText("");
-				}
-				if (searchBox.isFocused()) {
-					searchBox.changeFocus(false);
-				}
+				this.scrollPosition = 0.0F;
+				this.handler.scrollItems(0.0F);
 			}
-
-			this.scrollPosition = 0.0F;
-			this.handler.scrollItems(0.0F);
 		}
 	}
 
@@ -878,7 +888,7 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 		}
 
 		if (this.deleteItemSlot != null && selectedTab == ItemGroup.INVENTORY.getIndex() && this.isPointWithinBounds(this.deleteItemSlot.x, this.deleteItemSlot.y, 16, 16, mouseX, mouseY)) {
-			this.renderTooltip(matrices, field_26563, mouseX, mouseY);
+			this.renderTooltip(matrices, binText, mouseX, mouseY);
 		}
 
 		this.client.getTextureManager().bindTexture(BUTTON_TEX);
@@ -914,25 +924,25 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 				if (!sidebarButton.active) {
 					boolean state = sidebarButton.type == Type.OPEN;
 					stateX = (float) Math.min(
-									Math.max(
-													stateX - 0.15 * delta * ((stateX > 0 && state) ? 1 : 0),
-													0
-									) + 0.15 * delta * ((stateX < 1 && !state) ? 1 : 0),
-									1
+							Math.max(
+									stateX - 0.15 * delta * ((stateX > 0 && state) ? 1 : 0),
+									0
+							) + 0.15 * delta * ((stateX < 1 && !state) ? 1 : 0),
+							1
 					);
 					stateY = (float) Math.min(
-									Math.max(
-													stateY - 0.15 * delta * ((stateY > 0 && state) ? 1 : 0),
-													0
-									) + 0.15 * delta * ((stateY < 1 && !state) ? 1 : 0),
-									1
+							Math.max(
+									stateY - 0.15 * delta * ((stateY > 0 && state) ? 1 : 0),
+									0
+							) + 0.15 * delta * ((stateY < 1 && !state) ? 1 : 0),
+							1
 					);
 					sidebarButton.active = (
-									stateX < 0.05 * delta &&
-													stateY < 0.05 * delta
+							stateX < 0.05 * delta &&
+									stateY < 0.05 * delta
 					) || (
-									stateX > 1 - 0.05 * delta &&
-													stateY > 1 - 0.05 * delta
+							stateX > 1 - 0.05 * delta &&
+									stateY > 1 - 0.05 * delta
 					);
 				}
 			}
@@ -984,47 +994,49 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 				}
 			}
 			itemGroup.forEach(
-							(group) -> list2.add(1, group.getTranslationKey().shallowCopy().formatted(BLUE))
+					(group) -> list2.add(1, group.getTranslationKey().shallowCopy().formatted(BLUE))
 			);
 
 
 			this.renderTooltip(matrices, list2, x, y);
+			//		} else if (selectedTab == ItemGroup.HOTBAR.getIndex() && stack.getTag() != null) {
+			//			List<Text> lines = this.getTooltipFromItem(stack);
+			//			super.renderTooltip(matrices, lines, x, y);
 		} else {
 			super.renderTooltip(matrices, stack, x, y);
 		}
-
 	}
 
 	protected void drawBackground (MatrixStack matrices, float delta, int mouseX, int mouseY) {
 		assert this.client != null && this.client.player != null;
 		RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
-		ItemGroup itemGroup = ItemGroup.GROUPS[selectedTab];
-		ItemGroup[] var6 = ItemGroup.GROUPS;
-		int j = var6.length;
+		ItemGroup selectedGroup = ItemGroup.GROUPS[selectedTab];
+		ItemGroup[] groups = ItemGroup.GROUPS;
+		int count = groups.length;
 
 		int k;
-		for (k = 0; k < j; ++k) {
-			ItemGroup itemGroup2 = var6[k];
-			this.client.getTextureManager().bindTexture(BACKGR_TEX);
-			if (itemGroup2.getIndex() != selectedTab) {
-				this.renderTabIcon(matrices, itemGroup2);
+		for (k = 0; k < count; ++k) {
+			ItemGroup group = groups[k];
+			if (group.getIndex() != selectedTab) {
+				this.client.getTextureManager().bindTexture(BACKGR_TEX);
+				this.renderTabIcon(matrices, group);
 			}
 		}
 
-		this.client.getTextureManager().bindTexture(new Identifier("textures/gui/container/creative_inventory/tab_" + itemGroup.getTexture()));
+		this.client.getTextureManager().bindTexture(new Identifier("textures/gui/container/creative_inventory/tab_" + selectedGroup.getTexture()));
 		this.drawTexture(matrices, this.x, this.y, 0, 0, this.backgroundWidth, this.backgroundHeight);
 		this.searchBox.render(matrices, mouseX, mouseY, delta);
 		RenderSystem.color4f(1.0F, 1.0F, 1.0F, 1.0F);
 		int i = this.x + 175;
-		j = this.y + 18;
-		k = j + 112;
+		count = this.y + 18;
+		k = count + 112;
 		this.client.getTextureManager().bindTexture(BACKGR_TEX);
-		if (itemGroup.hasScrollbar()) {
-			this.drawTexture(matrices, i, j + (int) ((float) (k - j - 17) * this.scrollPosition), 232 + (this.hasScrollbar() ? 0 : 12), 0, 12, 15);
+		if (selectedGroup.hasScrollbar()) {
+			this.drawTexture(matrices, i, count + (int) ((float) (k - count - 17) * this.scrollPosition), 232 + (this.hasScrollbar() ? 0 : 12), 0, 12, 15);
 		}
 
-		this.renderTabIcon(matrices, itemGroup);
-		if (itemGroup == ItemGroup.INVENTORY) {
+		this.renderTabIcon(matrices, selectedGroup);
+		if (selectedGroup == ItemGroup.INVENTORY) {
 			InventoryScreen.drawEntity(this.x + 88, this.y + 45, 20, (float) (this.x + 88 - mouseX), (float) (this.y + 45 - 30 - mouseY), this.client.player);
 		}
 
@@ -1032,44 +1044,44 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 
 	protected boolean isClickInTab (ItemGroup group, double mouseX, double mouseY) {
 		if (isGroupVisible(group)) {
-			int i = group.getColumn();
-			int j = 28 * i;
-			int k = 0;
+			int index = group.getColumn();
+			int x = 28 * index;
+			int y = 0;
 			if (group.isSpecial()) {
-				j = this.backgroundWidth - 28 * (6 - i) + 2;
-			} else if (i > 0) {
-				j += i;
+				x = this.backgroundWidth - 28 * (6 - index) + 2;
+			} else if (index > 0) {
+				x += index;
 			}
 
 			if (group.isTopRow()) {
-				k = k - 32;
+				y = y - 32;
 			} else {
-				k = k + this.backgroundHeight;
+				y = y + this.backgroundHeight;
 			}
 
-			return mouseX >= (double) j && mouseX <= (double) (j + 28) && mouseY >= (double) k && mouseY <= (double) (k + 32);
+			return mouseX >= (double) x && mouseX <= (double) (x + 28) && mouseY >= (double) y && mouseY <= (double) (y + 32);
 		}
 		return false;
 	}
 
 	protected boolean renderTabTooltipIfHovered (MatrixStack matrixStack, ItemGroup itemGroup, int i, int j) {
 		if (this.isGroupVisible(itemGroup)) {
-			int k = itemGroup.getColumn();
-			int l = 28 * k;
-			int m = 0;
+			int column = itemGroup.getColumn();
+			int x = 28 * column;
+			int y = 0;
 			if (itemGroup.isSpecial()) {
-				l = this.backgroundWidth - 28 * (6 - k) + 2;
-			} else if (k > 0) {
-				l += k;
+				x = this.backgroundWidth - 28 * (6 - column) + 2;
+			} else if (column > 0) {
+				x += column;
 			}
 
 			if (itemGroup.isTopRow()) {
-				m = m - 32;
+				y = y - 32;
 			} else {
-				m = m + this.backgroundHeight;
+				y = y + this.backgroundHeight;
 			}
 
-			if (this.isPointWithinBounds(l + 3, m + 3, 23, 27, i, j)) {
+			if (this.isPointWithinBounds(x + 3, y + 3, 23, 27, i, j)) {
 				this.renderTooltip(matrixStack, itemGroup.getTranslationKey(), i, j);
 				return true;
 			}
@@ -1079,38 +1091,38 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 
 	protected void renderTabIcon (MatrixStack matrixStack, ItemGroup itemGroup) {
 		if (isGroupVisible(itemGroup)) {
-			boolean bl = itemGroup.getIndex() == selectedTab;
-			boolean bl2 = itemGroup.isTopRow();
-			int i = itemGroup.getColumn();
-			int j = i * 28;
-			int k = 0;
-			int l = this.x + 28 * i;
-			int m = this.y;
-			if (bl) {
-				k += 32;
+			boolean isSelected = itemGroup.getIndex() == selectedTab;
+			boolean topRow = itemGroup.isTopRow();
+			int column = itemGroup.getColumn();
+			int u = column * 28;
+			int v = 0;
+			int x = this.x + 28 * column;
+			int y = this.y;
+			if (isSelected) {
+				v += 32;
 			}
 
 			if (itemGroup.isSpecial()) {
-				l = this.x + this.backgroundWidth - 28 * (6 - i);
-			} else if (i > 0) {
-				l += i;
+				x = this.x + this.backgroundWidth - 28 * (6 - column);
+			} else if (column > 0) {
+				x += column;
 			}
 
-			if (bl2) {
-				m -= 28;
+			if (topRow) {
+				y -= 28;
 			} else {
-				k += 64;
-				m += this.backgroundHeight - 4;
+				v += 64;
+				y += this.backgroundHeight - 4;
 			}
 
-			this.drawTexture(matrixStack, l, m, j, k, 28, 32);
+			this.drawTexture(matrixStack, x, y, u, v, 28, 32);
 			this.itemRenderer.zOffset = 100.0F;
-			l += 6;
-			m += 8 + (bl2 ? 1 : -1);
+			x += 6;
+			y += 8 + (topRow ? 1 : -1);
 			RenderSystem.enableRescaleNormal();
 			ItemStack itemStack = itemGroup.getIcon();
-			this.itemRenderer.renderInGuiWithOverrides(itemStack, l, m);
-			this.itemRenderer.renderGuiItemOverlay(this.textRenderer, itemStack, l, m);
+			this.itemRenderer.renderInGuiWithOverrides(itemStack, x, y);
+			this.itemRenderer.renderGuiItemOverlay(this.textRenderer, itemStack, x, y);
 			this.itemRenderer.zOffset = 0.0F;
 		}
 	}
@@ -1129,7 +1141,10 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 			for (j = 0; j < PlayerInventory.getHotbarSize(); ++j) {
 				ItemStack itemStack = hotbarStorageEntry.get(j).copy();
 				clientPlayerEntity.inventory.setStack(j, itemStack);
-				client.interactionManager.clickCreativeStack(itemStack, 36 + j);
+				client.getNetworkHandler().sendPacket(new CreativeInventoryActionC2SPacket(36 + j, itemStack));
+				Text slotKey = client.options.keysHotbar[index].getBoundKeyLocalizedText();
+				Text saveKey = client.options.keySaveToolbarActivator.getBoundKeyLocalizedText();
+				client.inGameHud.setOverlayMessage(new TranslatableText("inventory.hotbarRestored", saveKey, slotKey), false);
 			}
 
 			clientPlayerEntity.playerScreenHandler.sendContentUpdates();
@@ -1138,9 +1153,9 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 				hotbarStorageEntry.set(j, clientPlayerEntity.inventory.getStack(j).copy());
 			}
 
-			Text text = client.options.keysHotbar[index].getBoundKeyLocalizedText();
-			Text text2 = client.options.keyLoadToolbarActivator.getBoundKeyLocalizedText();
-			client.inGameHud.setOverlayMessage(new TranslatableText("inventory.hotbarSaved", text2, text), false);
+			Text slotKey = client.options.keysHotbar[index].getBoundKeyLocalizedText();
+			Text restoreKey = client.options.keyLoadToolbarActivator.getBoundKeyLocalizedText();
+			client.inGameHud.setOverlayMessage(new TranslatableText("inventory.hotbarSaved", restoreKey, slotKey), false);
 			hotbarStorage.save();
 		}
 
@@ -1152,8 +1167,8 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 
 	@Environment(EnvType.CLIENT)
 	static class LockableSlot extends Slot {
-		public LockableSlot (Inventory inventory, int i, int j, int k) {
-			super(inventory, i, j, k);
+		public LockableSlot (Inventory inventory, int index, int x, int y) {
+			super(inventory, index, x, y);
 		}
 
 		public boolean canTakeItems (PlayerEntity playerEntity) {
@@ -1222,6 +1237,19 @@ public class Idk extends AbstractInventoryScreen<Idk.UnknownScreenHandler> imple
 
 		public boolean canTakeItems (PlayerEntity playerEntity) {
 			return this.slot.canTakeItems(playerEntity);
+		}
+
+	}
+
+	@Environment(EnvType.CLIENT)
+	static class ModifiableSlot extends Slot {
+
+		public ModifiableSlot (Inventory inventory, int index, int x, int y) {
+			super(inventory, index, x, y);
+		}
+
+		public boolean canTakeItems (PlayerEntity playerEntity) {
+			return false;
 		}
 
 	}
